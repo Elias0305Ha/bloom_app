@@ -9,6 +9,15 @@ class MongoService {
   static Db? _db;
   static DbCollection? _collection;
 
+  static Future<void> _reconnect() async {
+    try {
+      await _db?.close();
+    } catch (_) {}
+    _db = await Db.create(_connectionString);
+    await _db!.open();
+    _collection = _db!.collection(_collectionName);
+  }
+
   // Initialize database connection
   static Future<void> initialize() async {
     try {
@@ -36,6 +45,13 @@ class MongoService {
     }
   }
 
+  static bool _shouldReconnect(Object e) {
+    final msg = e.toString();
+    return msg.contains('No master connection') ||
+        msg.contains('SocketException') ||
+        msg.contains('ConnectionException');
+  }
+
   // Save mood entry
   static Future<void> saveMoodEntry(MoodEntry entry) async {
     try {
@@ -59,6 +75,13 @@ class MongoService {
       print('Verification - found saved entry: $verifyResult');
       
     } catch (e) {
+      if (_shouldReconnect(e)) {
+        print('Reconnect needed (reason: $e). Retrying once...');
+        await _reconnect();
+        final result = await _collection!.insertOne(entry.toMap());
+        print('Retry insert result: $result');
+        return;
+      }
       print('=== ERROR SAVING MOOD ENTRY ===');
       print('Error type: ${e.runtimeType}');
       print('Error message: $e');
@@ -76,6 +99,11 @@ class MongoService {
       
       return entries.map((doc) => MoodEntry.fromMap(doc)).toList();
     } catch (e) {
+      if (_shouldReconnect(e)) {
+        await _reconnect();
+        final entries = await _collection!.find().toList();
+        return entries.map((doc) => MoodEntry.fromMap(doc)).toList();
+      }
       print('Error getting mood entries: $e');
       return [];
     }
@@ -93,6 +121,11 @@ class MongoService {
       }
       return null;
     } catch (e) {
+      if (_shouldReconnect(e)) {
+        await _reconnect();
+        final entry = await _collection!.findOne(where.eq('date', date.toIso8601String()));
+        return entry == null ? null : MoodEntry.fromMap(entry);
+      }
       print('Error getting entry for date: $e');
       return null;
     }
@@ -106,6 +139,11 @@ class MongoService {
       await _collection!.remove(query);
       print('Mood entry deleted successfully!');
     } catch (e) {
+      if (_shouldReconnect(e)) {
+        await _reconnect();
+        await _collection!.remove(where.eq('_id', entry.id));
+        return;
+      }
       print('Error deleting mood entry: $e');
       rethrow;
     }

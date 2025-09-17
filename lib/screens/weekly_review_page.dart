@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/mood_entry.dart';
+import '../models/todo.dart';
 import '../services/storage_service.dart';
 
 class WeeklyReviewPage extends StatefulWidget {
@@ -12,6 +13,7 @@ class WeeklyReviewPage extends StatefulWidget {
 
 class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
   List<MoodEntry> _weeklyEntries = [];
+  List<Todo> _weeklyTodos = [];
   bool _isLoading = true;
 
   @override
@@ -24,13 +26,15 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
     try {
       final allEntries = await StorageService.getMoodEntries();
       final now = DateTime.now();
-      final weekStart = now.subtract(Duration(days: now.weekday - 1));
+      final weekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
       final weekEnd = weekStart.add(const Duration(days: 6));
 
       _weeklyEntries = allEntries.where((entry) {
         return entry.date.isAfter(weekStart.subtract(const Duration(days: 1))) &&
                entry.date.isBefore(weekEnd.add(const Duration(days: 1)));
       }).toList();
+
+      _weeklyTodos = await StorageService.getTodosInRange(weekStart, weekEnd);
 
       setState(() {
         _isLoading = false;
@@ -97,6 +101,33 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
     }
   }
 
+  List<double> _dailyTodoCompletionPercents() {
+    // Build map date->list of todos
+    Map<String, List<Todo>> byDay = {};
+    for (final t in _weeklyTodos) {
+      final key = DateTime(t.date.year, t.date.month, t.date.day).toIso8601String().substring(0, 10);
+      (byDay[key] = byDay[key] ?? []).add(t);
+    }
+    final now = DateTime.now();
+    final weekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+    List<double> values = [];
+    for (int i = 0; i < 7; i++) {
+      final d = weekStart.add(Duration(days: i));
+      final key = d.toIso8601String().substring(0, 10);
+      final todos = byDay[key] ?? const [];
+      if (todos.isEmpty) {
+        values.add(0);
+        continue;
+      }
+      int sum = 0;
+      for (final t in todos) {
+        sum += t.progressPercent; // derived
+      }
+      values.add(sum / todos.length.toDouble());
+    }
+    return values;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -108,6 +139,7 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
     final moodDistribution = _getMoodDistribution();
     final activityCounts = _getActivityCounts();
     final mostCommonMood = _getMostCommonMood();
+    final completion = _dailyTodoCompletionPercents();
 
     return Scaffold(
       appBar: AppBar(
@@ -224,6 +256,52 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
                         }).toList(),
                         centerSpaceRadius: 40,
                         sectionsSpace: 2,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 24),
+
+            // Weekly completion bar chart
+            if (completion.isNotEmpty) ...[
+              Text(
+                'Todo Completion % (This Week)',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    height: 200,
+                    child: BarChart(
+                      BarChartData(
+                        borderData: FlBorderData(show: false),
+                        gridData: FlGridData(show: false),
+                        titlesData: FlTitlesData(
+                          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28, interval: 25)),
+                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                const labels = ['M','T','W','T','F','S','S'];
+                                return Text(labels[value.toInt().clamp(0,6)]);
+                              },
+                            ),
+                          ),
+                        ),
+                        barGroups: List.generate(7, (i) {
+                          final v = i < completion.length ? completion[i] : 0.0;
+                          return BarChartGroupData(x: i, barRods: [
+                            BarChartRodData(toY: v.clamp(0, 100), color: Colors.green, width: 18, borderRadius: BorderRadius.circular(4)),
+                          ]);
+                        }),
+                        maxY: 100,
                       ),
                     ),
                   ),

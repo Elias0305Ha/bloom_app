@@ -1,8 +1,10 @@
 import 'package:mongo_dart/mongo_dart.dart';
 import '../models/mood_entry.dart';
 import '../models/todo.dart';
+import '../models/daily_review.dart';
 import 'mongodb_service.dart';
 import 'todo_mongodb_service.dart';
+import 'daily_review_mongodb_service.dart';
 
 class StorageService {
   // Save a mood entry
@@ -44,5 +46,18 @@ class StorageService {
 
   static Future<List<Todo>> getTodosInRange(DateTime start, DateTime end) async {
     return await TodoMongoService.getTodosInRange(start, end);
+  }
+
+  // ------------------ DAILY REVIEW ------------------
+  static Future<ObjectId> saveDailyReview(DailyReview review) async {
+    return await DailyReviewMongoService.saveReview(review);
+  }
+
+  static Future<DailyReview?> getDailyReview(DateTime date) async {
+    return await DailyReviewMongoService.getForDate(date);
+  }
+
+  static Future<List<DailyReview>> getDailyReviewsInRange(DateTime start, DateTime end) async {
+    return await DailyReviewMongoService.getInRange(start, end);
   }
 }
