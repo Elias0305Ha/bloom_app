@@ -1,5 +1,8 @@
+import 'package:mongo_dart/mongo_dart.dart';
 import '../models/mood_entry.dart';
+import '../models/todo.dart';
 import 'mongodb_service.dart';
+import 'todo_mongodb_service.dart';
 
 class StorageService {
   // Save a mood entry
@@ -20,5 +23,26 @@ class StorageService {
   // Delete mood entry
   static Future<void> deleteMoodEntry(MoodEntry entry) async {
     await MongoService.deleteMoodEntry(entry);
+  }
+
+  // ------------------ TODOS ------------------
+  static Future<ObjectId> createTodo(Todo todo) async {
+    return await TodoMongoService.createTodo(todo);
+  }
+
+  static Future<void> updateTodo(Todo todo) async {
+    await TodoMongoService.updateTodo(todo);
+  }
+
+  static Future<void> deleteTodo(ObjectId id) async {
+    await TodoMongoService.deleteTodo(id);
+  }
+
+  static Future<List<Todo>> getTodosForDate(DateTime date) async {
+    return await TodoMongoService.getTodosForDate(date);
+  }
+
+  static Future<List<Todo>> getTodosInRange(DateTime start, DateTime end) async {
+    return await TodoMongoService.getTodosInRange(start, end);
   }
 }

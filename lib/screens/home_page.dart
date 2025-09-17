@@ -4,6 +4,8 @@ import '../widgets/activity_button.dart';
 import '../models/mood_entry.dart';
 import '../services/storage_service.dart';
 import 'timeline_page.dart';
+import 'weekly_review_page.dart';
+import 'daily_hub_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,8 +17,17 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String? selectedMood;
   List<String> selectedActivities = [];
+  List<String> selectedTriggers = [];
+  int intensity = 5;
+  final TextEditingController _noteController = TextEditingController();
   bool isSaving = false;
   bool isSaved = false;
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    super.dispose();
+  }
 
   void _selectMood(String mood) {
     setState(() {
@@ -30,6 +41,16 @@ class _HomePageState extends State<HomePage> {
         selectedActivities.remove(activity);
       } else {
         selectedActivities.add(activity);
+      }
+    });
+  }
+
+  void _toggleTrigger(String trigger) {
+    setState(() {
+      if (selectedTriggers.contains(trigger)) {
+        selectedTriggers.remove(trigger);
+      } else {
+        selectedTriggers.add(trigger);
       }
     });
   }
@@ -48,8 +69,11 @@ class _HomePageState extends State<HomePage> {
     try {
       final entry = MoodEntry(
         mood: selectedMood!,
+        intensity: intensity,
         activities: selectedActivities,
+        triggers: selectedTriggers,
         date: DateTime.now(),
+        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
       );
 
       await StorageService.saveMoodEntry(entry);
@@ -80,11 +104,21 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final triggerOptions = const ['Work', 'Family', 'Health', 'Sleep', 'Money', 'Weather', 'Social', 'Diet'];
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         title: const Text('Bloom'),
         actions: [
+          IconButton(
+            tooltip: 'Weekly Review',
+            icon: const Icon(Icons.analytics),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const WeeklyReviewPage()),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Open Timeline',
             icon: const Icon(Icons.history),
@@ -96,17 +130,27 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
+          IconButton(
+            tooltip: 'Open Daily Hub',
+            icon: const Icon(Icons.calendar_today),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const DailyHubPage()),
+              );
+            },
+          ),
         ],
       ),
-      body: Center(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: <Widget>[
             const Text(
               'How are you feeling today?',
               style: TextStyle(fontSize: 24),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -142,12 +186,33 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 40),
+
+            const SizedBox(height: 24),
+            // Intensity slider
+            if (selectedMood != null) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Intensity'),
+                  Text('$intensity/10'),
+                ],
+              ),
+              Slider(
+                value: intensity.toDouble(),
+                min: 1,
+                max: 10,
+                divisions: 9,
+                label: '$intensity',
+                onChanged: (v) => setState(() => intensity = v.round()),
+              ),
+            ],
+
+            const SizedBox(height: 16),
             const Text(
               'What did you do today?',
               style: TextStyle(fontSize: 20),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -184,13 +249,45 @@ class _HomePageState extends State<HomePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 30),
+
+            const SizedBox(height: 20),
+            // Triggers
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('What influenced your mood?', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: triggerOptions.map((t) {
+                final selected = selectedTriggers.contains(t);
+                return FilterChip(
+                  label: Text(t),
+                  selected: selected,
+                  onSelected: (_) => _toggleTrigger(t),
+                );
+              }).toList(),
+            ),
+
+            const SizedBox(height: 16),
+            // Note
+            TextField(
+              controller: _noteController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Why do you feel this way? (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+
+            const SizedBox(height: 20),
             if (selectedMood != null || selectedActivities.isNotEmpty)
               Column(
                 children: [
                   if (selectedMood != null)
                     Text(
-                      'Mood: $selectedMood',
+                      'Mood: $selectedMood (Intensity: $intensity/10)',
                       style: const TextStyle(fontSize: 18),
                     ),
                   if (selectedActivities.isNotEmpty)
@@ -198,9 +295,14 @@ class _HomePageState extends State<HomePage> {
                       'Activities: ${selectedActivities.join(', ')}',
                       style: const TextStyle(fontSize: 18),
                     ),
+                  if (selectedTriggers.isNotEmpty)
+                    Text(
+                      'Triggers: ${selectedTriggers.join(', ')}',
+                      style: const TextStyle(fontSize: 18),
+                    ),
                 ],
               ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
             if (selectedMood != null)
               ElevatedButton(
                 onPressed: isSaving ? null : _saveEntry,
