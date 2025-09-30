@@ -17,6 +17,8 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
   List<Todo> _todos = const [];
   DailyReview? _todayReview;
   List<MoodEntry> _todayMoods = [];
+  List<MoodEntry> _weekMoods = [];
+  Map<String, dynamic> _moodInsights = {};
   DateTime _today = DateTime.now();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -60,6 +62,17 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
         final moodDate = DateTime(mood.date.year, mood.date.month, mood.date.day);
         return moodDate.isAtSameMomentAs(_today);
       }).toList();
+      
+      // Filter week's moods for analysis
+      final weekStart = _today.subtract(Duration(days: _today.weekday - 1));
+      _weekMoods = allMoods.where((mood) {
+        final moodDate = DateTime(mood.date.year, mood.date.month, mood.date.day);
+        return moodDate.isAfter(weekStart.subtract(const Duration(days: 1))) && 
+               moodDate.isBefore(_today.add(const Duration(days: 1)));
+      }).toList();
+      
+      // Generate mood insights
+      _moodInsights = _generateMoodInsights();
       
       setState(() {
         _todos = results;
@@ -644,6 +657,8 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
             const SizedBox(height: 16),
             // Motivational Quote
             _buildQuoteCard(),
+            if (_moodInsights.isNotEmpty) _buildMoodInsightsCard(),
+            _buildProgressChartsSection(),
           ],
         ),
       ),
@@ -775,6 +790,478 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
                 fontStyle: FontStyle.italic,
                 color: Colors.purple.shade800,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoodInsightsCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.indigo.shade100, Colors.teal.shade100],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.indigo.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.psychology, color: Colors.indigo.shade600, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Mood Intelligence',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.indigo.shade700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildInsightItem(
+                  'Dominant Mood',
+                  _getMoodEmoji(_moodInsights['dominantMood']),
+                  _moodInsights['dominantMood'],
+                ),
+              ),
+              Expanded(
+                child: _buildInsightItem(
+                  'Avg Intensity',
+                  '${_moodInsights['avgIntensity']}/5',
+                  'This Week',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_moodInsights['topTriggers'].isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Top Triggers:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.indigo.shade600,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: (_moodInsights['topTriggers'] as List<String>)
+                      .map((trigger) => Chip(
+                            label: Text(trigger),
+                            backgroundColor: Colors.indigo.shade50,
+                            labelStyle: TextStyle(
+                              color: Colors.indigo.shade700,
+                              fontSize: 11,
+                            ),
+                            padding: EdgeInsets.zero,
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ))
+                      .toList(),
+                ),
+              ],
+            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(
+                _moodInsights['trend'] == 'improving' ? Icons.trending_up : 
+                _moodInsights['trend'] == 'declining' ? Icons.trending_down : Icons.trending_flat,
+                color: _moodInsights['trend'] == 'improving' ? Colors.green : 
+                       _moodInsights['trend'] == 'declining' ? Colors.red : Colors.grey,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Trend: ${_moodInsights['trend']}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.indigo.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightItem(String label, String value, String subtitle) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.indigo.shade700,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: Colors.indigo.shade600,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.indigo.shade500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressChartsSection() {
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Icon(Icons.analytics, color: Colors.deepPurple.shade600, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Progress Analytics',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.deepPurple.shade700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildMoodTrendChart(),
+          const SizedBox(height: 16),
+          _buildHabitCompletionChart(),
+          const SizedBox(height: 16),
+          _buildProductivityChart(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMoodTrendChart() {
+    if (_weekMoods.isEmpty) return _buildEmptyChart('No mood data this week');
+    
+    final moodData = _weekMoods.map((mood) => mood.intensity.toDouble()).toList();
+    final maxIntensity = moodData.reduce((a, b) => a > b ? a : b);
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade50, Colors.purple.shade50],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mood Trend (7 Days)',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 120,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: moodData.asMap().entries.map((entry) {
+                final index = entry.key;
+                final intensity = entry.value;
+                final height = ((intensity / maxIntensity) * 80).clamp(0.0, 80.0);
+                final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: 30,
+                      height: height,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.blue.shade400,
+                            Colors.purple.shade400,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      dayNames[index % 7],
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: Colors.blue.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      intensity.toInt().toString(),
+                      style: TextStyle(
+                        fontSize: 8,
+                        color: Colors.blue.shade500,
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHabitCompletionChart() {
+    // Mock data for habit completion - in real app, get from habit service
+    final habitData = [
+      {'name': 'Exercise', 'completed': 5, 'total': 7},
+      {'name': 'Meditation', 'completed': 4, 'total': 7},
+      {'name': 'Reading', 'completed': 6, 'total': 7},
+      {'name': 'Sleep', 'completed': 3, 'total': 7},
+    ];
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade50, Colors.teal.shade50],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Habit Completion Rate',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.green.shade700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ...habitData.map((habit) {
+            final percentage = ((habit['completed'] as int) / (habit['total'] as int)) * 100;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        habit['name'] as String,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green.shade700,
+                        ),
+                      ),
+                      Text(
+                        '${habit['completed']}/${habit['total']}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  LinearProgressIndicator(
+                    value: percentage / 100,
+                    backgroundColor: Colors.green.shade100,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade400),
+                    minHeight: 8,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${percentage.round()}%',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.green.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductivityChart() {
+    // Mock productivity data - in real app, calculate from todos and habits
+    final productivityData = [
+      {'day': 'Mon', 'score': 85},
+      {'day': 'Tue', 'score': 92},
+      {'day': 'Wed', 'score': 78},
+      {'day': 'Thu', 'score': 88},
+      {'day': 'Fri', 'score': 95},
+      {'day': 'Sat', 'score': 70},
+      {'day': 'Sun', 'score': 82},
+    ];
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.orange.shade50, Colors.red.shade50],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.orange.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Productivity Score',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.orange.shade700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 100,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: productivityData.map((data) {
+                final score = data['score'] as int;
+                final height = (score / 100) * 80;
+                
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: 25,
+                      height: height,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Colors.orange.shade400,
+                            Colors.red.shade400,
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      data['day'] as String,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: Colors.orange.shade600,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      score.toString(),
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: Colors.orange.shade500,
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyChart(String message) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.bar_chart, color: Colors.grey.shade400, size: 48),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 14,
             ),
           ),
         ],
@@ -959,6 +1446,44 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
     if (completion >= 40) return 'Keep pushing forward! 💪';
     if (completion >= 20) return 'Every step counts! Keep going! 🚀';
     return 'Ready to start your journey? Let\'s go! 🌟';
+  }
+
+  Map<String, dynamic> _generateMoodInsights() {
+    if (_weekMoods.isEmpty) return {};
+    
+    // Calculate average mood intensity
+    final avgIntensity = _weekMoods.map((m) => m.intensity).reduce((a, b) => a + b) / _weekMoods.length;
+    
+    // Find most common mood
+    final moodCounts = <String, int>{};
+    for (final mood in _weekMoods) {
+      moodCounts[mood.mood] = (moodCounts[mood.mood] ?? 0) + 1;
+    }
+    final dominantMood = moodCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+    
+    // Find common triggers
+    final triggerCounts = <String, int>{};
+    for (final mood in _weekMoods) {
+      for (final trigger in mood.triggers) {
+        triggerCounts[trigger] = (triggerCounts[trigger] ?? 0) + 1;
+      }
+    }
+    final topTriggers = triggerCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    // Mood trend (comparing first half vs second half of week)
+    final midWeek = _weekMoods.length ~/ 2;
+    final firstHalfAvg = _weekMoods.take(midWeek).map((m) => m.intensity).reduce((a, b) => a + b) / midWeek;
+    final secondHalfAvg = _weekMoods.skip(midWeek).map((m) => m.intensity).reduce((a, b) => a + b) / (_weekMoods.length - midWeek);
+    final trend = secondHalfAvg > firstHalfAvg ? 'improving' : secondHalfAvg < firstHalfAvg ? 'declining' : 'stable';
+    
+    return {
+      'avgIntensity': avgIntensity.round(),
+      'dominantMood': dominantMood,
+      'topTriggers': topTriggers.take(3).map((e) => e.key).toList(),
+      'trend': trend,
+      'totalEntries': _weekMoods.length,
+    };
   }
 
   Widget _buildSkeletonLoader() {

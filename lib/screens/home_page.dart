@@ -6,6 +6,8 @@ import '../services/storage_service.dart';
 import 'timeline_page.dart';
 import 'weekly_review_page.dart';
 import 'daily_hub_page.dart';
+import 'habit_tracker_page.dart';
+import 'ai_insights_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,6 +17,24 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  bool _isNavigating = false;
+
+  Future<void> _safePush(Widget page) async {
+    if (_isNavigating || !mounted) return;
+    setState(() => _isNavigating = true);
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => page),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Navigation failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isNavigating = false);
+    }
+  }
   String? selectedMood;
   List<String> selectedActivities = [];
   List<String> selectedTriggers = [];
@@ -141,6 +161,16 @@ class _HomePageState extends State<HomePage> {
               );
             },
           ),
+            IconButton(
+              tooltip: 'Habit Tracker',
+              icon: const Icon(Icons.psychology),
+              onPressed: _isNavigating ? null : () => _safePush(const HabitTrackerPage()),
+            ),
+            IconButton(
+              tooltip: 'AI Insights',
+              icon: const Icon(Icons.auto_awesome),
+              onPressed: _isNavigating ? null : () => _safePush(const AIInsightsPage()),
+            ),
         ],
       ),
       body: SingleChildScrollView(

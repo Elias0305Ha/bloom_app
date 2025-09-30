@@ -2,9 +2,11 @@ import 'package:mongo_dart/mongo_dart.dart';
 import '../models/mood_entry.dart';
 import '../models/todo.dart';
 import '../models/daily_review.dart';
+import '../models/habit.dart';
 import 'mongodb_service.dart';
 import 'todo_mongodb_service.dart';
 import 'daily_review_mongodb_service.dart';
+import 'habit_mongodb_service.dart';
 
 class StorageService {
   // Save a mood entry
@@ -59,5 +61,42 @@ class StorageService {
 
   static Future<List<DailyReview>> getDailyReviewsInRange(DateTime start, DateTime end) async {
     return await DailyReviewMongoService.getInRange(start, end);
+  }
+
+  // ------------------ HABITS ------------------
+  static Future<ObjectId> createHabit(Habit habit) async {
+    return await HabitMongoService.createHabit(habit);
+  }
+
+  static Future<void> updateHabit(Habit habit) async {
+    await HabitMongoService.updateHabit(habit);
+  }
+
+  static Future<void> deleteHabit(ObjectId id) async {
+    await HabitMongoService.deleteHabit(id);
+  }
+
+  static Future<List<Habit>> getAllHabits() async {
+    return await HabitMongoService.getAllHabits();
+  }
+
+  static Future<Habit?> getHabitById(ObjectId id) async {
+    return await HabitMongoService.getHabitById(id);
+  }
+
+  static Future<List<Habit>> getHabitsByCategory(String category) async {
+    return await HabitMongoService.getHabitsByCategory(category);
+  }
+
+  static Future<void> completeHabit(ObjectId habitId, HabitCompletion completion) async {
+    await HabitMongoService.completeHabit(habitId, completion);
+  }
+
+  static Future<List<Habit>> getHabitsForDate(DateTime date) async {
+    return await HabitMongoService.getHabitsForDate(date);
+  }
+
+  static Future<Map<String, dynamic>> getHabitStats() async {
+    return await HabitMongoService.getHabitStats();
   }
 }
