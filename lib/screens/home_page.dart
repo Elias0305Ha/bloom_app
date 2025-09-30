@@ -29,6 +29,8 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
+
+
   void _selectMood(String mood) {
     setState(() {
       selectedMood = mood;
@@ -73,7 +75,7 @@ class _HomePageState extends State<HomePage> {
         activities: selectedActivities,
         triggers: selectedTriggers,
         date: DateTime.now(),
-        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+        note: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
       );
 
       await StorageService.saveMoodEntry(entry);

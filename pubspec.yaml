@@ -37,6 +37,7 @@ dependencies:
   shared_preferences: ^2.2.2
   mongo_dart: ^0.10.5     # NEW: MongoDB package
   fl_chart: ^0.68.0       # NEW: Charts for weekly review
+  permission_handler: ^11.3.1  # NEW: Permissions
 
 dev_dependencies:
   flutter_test:

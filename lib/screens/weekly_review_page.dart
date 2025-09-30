@@ -15,26 +15,35 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
   List<MoodEntry> _weeklyEntries = [];
   List<Todo> _weeklyTodos = [];
   bool _isLoading = true;
+  DateTime _currentWeekStart = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    _initializeCurrentWeek();
     _loadWeeklyData();
+  }
+
+  void _initializeCurrentWeek() {
+    final now = DateTime.now();
+    _currentWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
   }
 
   Future<void> _loadWeeklyData() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       final allEntries = await StorageService.getMoodEntries();
-      final now = DateTime.now();
-      final weekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
-      final weekEnd = weekStart.add(const Duration(days: 6));
+      final weekEnd = _currentWeekStart.add(const Duration(days: 6));
 
       _weeklyEntries = allEntries.where((entry) {
-        return entry.date.isAfter(weekStart.subtract(const Duration(days: 1))) &&
+        return entry.date.isAfter(_currentWeekStart.subtract(const Duration(days: 1))) &&
                entry.date.isBefore(weekEnd.add(const Duration(days: 1)));
       }).toList();
 
-      _weeklyTodos = await StorageService.getTodosInRange(weekStart, weekEnd);
+      _weeklyTodos = await StorageService.getTodosInRange(_currentWeekStart, weekEnd);
 
       setState(() {
         _isLoading = false;
@@ -45,6 +54,159 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
       });
       print('Error loading weekly data: $e');
     }
+  }
+
+  void _goToPreviousWeek() {
+    setState(() {
+      _currentWeekStart = _currentWeekStart.subtract(const Duration(days: 7));
+    });
+    _loadWeeklyData();
+  }
+
+  void _goToNextWeek() {
+    setState(() {
+      _currentWeekStart = _currentWeekStart.add(const Duration(days: 7));
+    });
+    _loadWeeklyData();
+  }
+
+  void _goToCurrentWeek() {
+    _initializeCurrentWeek();
+    _loadWeeklyData();
+  }
+
+  String _getWeekDisplayText() {
+    final weekEnd = _currentWeekStart.add(const Duration(days: 6));
+    final now = DateTime.now();
+    final currentWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+    
+    final isCurrentWeek = _currentWeekStart.isAtSameMomentAs(currentWeekStart);
+    final prefix = isCurrentWeek ? "This Week" : "Week of";
+    
+    return "$prefix ${_currentWeekStart.day}/${_currentWeekStart.month} - ${weekEnd.day}/${weekEnd.month}";
+  }
+
+  bool _isCurrentWeek() {
+    final now = DateTime.now();
+    final currentWeekStart = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+    return _currentWeekStart.isAtSameMomentAs(currentWeekStart);
+  }
+
+  Widget _buildWeekCard(DateTime weekStart, String label) {
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final isCurrentWeek = _isCurrentWeek() && weekStart.isAtSameMomentAs(_currentWeekStart);
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currentWeekStart = weekStart;
+        });
+        _loadWeeklyData();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isCurrentWeek ? Colors.green.shade100 : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isCurrentWeek ? Colors.green : Colors.grey.shade300,
+            width: isCurrentWeek ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isCurrentWeek ? Colors.green.shade800 : Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${weekStart.day}/${weekStart.month}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: isCurrentWeek ? Colors.green.shade800 : Colors.black87,
+              ),
+            ),
+            Text(
+              'to ${weekEnd.day}/${weekEnd.month}',
+              style: TextStyle(
+                fontSize: 10,
+                color: isCurrentWeek ? Colors.green.shade600 : Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCurrentWeekCard() {
+    final weekEnd = _currentWeekStart.add(const Duration(days: 6));
+    final isCurrentWeek = _isCurrentWeek();
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isCurrentWeek ? Colors.green.shade100 : Colors.blue.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isCurrentWeek ? Colors.green : Colors.blue,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            isCurrentWeek ? 'This Week' : 'Selected Week',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isCurrentWeek ? Colors.green.shade800 : Colors.blue.shade800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${_currentWeekStart.day}/${_currentWeekStart.month} - ${weekEnd.day}/${weekEnd.month}',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: isCurrentWeek ? Colors.green.shade800 : Colors.blue.shade800,
+            ),
+          ),
+          Text(
+            '${_currentWeekStart.year}',
+            style: TextStyle(
+              fontSize: 12,
+              color: isCurrentWeek ? Colors.green.shade600 : Colors.blue.shade600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showWeekPicker() {
+    showDatePicker(
+      context: context,
+      initialDate: _currentWeekStart,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    ).then((selectedDate) {
+      if (selectedDate != null) {
+        // Calculate the week start for the selected date
+        final weekStart = DateTime(selectedDate.year, selectedDate.month, selectedDate.day)
+            .subtract(Duration(days: selectedDate.weekday - 1));
+        setState(() {
+          _currentWeekStart = weekStart;
+        });
+        _loadWeeklyData();
+      }
+    });
   }
 
   Map<String, int> _getMoodDistribution() {
@@ -157,6 +319,84 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Week Selector Card
+            Card(
+              elevation: 4,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Select Week',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (!_isCurrentWeek())
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade100,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              'Past Week',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange.shade800,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Week Navigation
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildWeekCard(_currentWeekStart.subtract(const Duration(days: 7)), 'Previous'),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: _buildCurrentWeekCard(),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildWeekCard(_currentWeekStart.add(const Duration(days: 7)), 'Next'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // Quick Jump Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _goToCurrentWeek,
+                            icon: const Icon(Icons.today, size: 18),
+                            label: const Text('Current Week'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _showWeekPicker,
+                            icon: const Icon(Icons.calendar_month, size: 18),
+                            label: const Text('Pick Week'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             // Week Summary Card
             Card(
               child: Padding(
@@ -165,7 +405,7 @@ class _WeeklyReviewPageState extends State<WeeklyReviewPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'This Week\'s Summary',
+                      'Week Summary',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 16),
