@@ -3,6 +3,7 @@ import '../widgets/mood_button.dart';
 import '../widgets/activity_button.dart';
 import '../models/mood_entry.dart';
 import '../services/storage_service.dart';
+import '../services/notification_service.dart';
 import 'timeline_page.dart';
 import 'weekly_review_page.dart';
 import 'daily_hub_page.dart';
@@ -170,6 +171,21 @@ class _HomePageState extends State<HomePage> {
               tooltip: 'AI Insights',
               icon: const Icon(Icons.auto_awesome),
               onPressed: _isNavigating ? null : () => _safePush(const AIInsightsPage()),
+            ),
+            IconButton(
+              tooltip: 'Test Notify',
+              icon: const Icon(Icons.notifications_active),
+              onPressed: () async {
+                await NotificationService.scheduleInSeconds(
+                  title: 'Bloom reminder',
+                  body: 'Time to log your mood or complete a habit 🌱',
+                  seconds: 5,
+                );
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Notification scheduled in 5s')),
+                );
+              },
             ),
         ],
       ),

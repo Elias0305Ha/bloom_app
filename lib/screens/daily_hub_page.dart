@@ -18,10 +18,15 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
   DailyReview? _todayReview;
   List<MoodEntry> _todayMoods = [];
   List<MoodEntry> _weekMoods = [];
+  List<Todo> _weekTodos = [];
   Map<String, dynamic> _moodInsights = {};
   DateTime _today = DateTime.now();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  // Quick add todo inputs
+  final TextEditingController _quickTodoController = TextEditingController();
+  String _quickPriority = 'medium';
+  bool _quickImpact = false;
 
   @override
   void initState() {
@@ -40,6 +45,7 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
   @override
   void dispose() {
     _animationController.dispose();
+    _quickTodoController.dispose();
     super.dispose();
   }
 
@@ -47,15 +53,19 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
     setState(() => _isLoading = true);
     try {
       // Load data in parallel for better performance
+      final weekStart = _today.subtract(Duration(days: _today.weekday - 1));
+      final weekEnd = weekStart.add(const Duration(days: 6));
       final futures = await Future.wait([
         StorageService.getTodosForDate(_today),
         StorageService.getDailyReview(_today),
         StorageService.getMoodEntries(),
+        StorageService.getTodosInRange(weekStart, weekEnd),
       ]);
       
       final results = futures[0] as List<Todo>;
       final review = futures[1] as DailyReview?;
       final allMoods = futures[2] as List<MoodEntry>;
+      final weeklyTodos = futures[3] as List<Todo>;
       
       // Filter today's moods efficiently
       final todayMoods = allMoods.where((mood) {
@@ -64,7 +74,6 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
       }).toList();
       
       // Filter week's moods for analysis
-      final weekStart = _today.subtract(Duration(days: _today.weekday - 1));
       _weekMoods = allMoods.where((mood) {
         final moodDate = DateTime(mood.date.year, mood.date.month, mood.date.day);
         return moodDate.isAfter(weekStart.subtract(const Duration(days: 1))) && 
@@ -78,6 +87,7 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
         _todos = results;
         _todayReview = review;
         _todayMoods = todayMoods;
+        _weekTodos = weeklyTodos;
       });
       
       // Start animation after data is loaded
@@ -88,6 +98,7 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
         _todos = [];
         _todayReview = null;
         _todayMoods = [];
+        _weekTodos = [];
       });
     } finally {
       setState(() => _isLoading = false);
@@ -301,8 +312,34 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
   }
 
   Future<void> _toggleTodoDone(Todo todo, bool done) async {
-    final updated = todo.copyWith(status: done ? 'done' : 'open');
+    // Also mark all subtasks as done/undone to reflect instantly
+    final updatedSubtasks = todo.subtasks
+        .map((s) => s.copyWith(isDone: done))
+        .toList();
+    final updated = todo.copyWith(
+      status: done ? 'completed' : 'open',
+      subtasks: updatedSubtasks,
+    );
     await StorageService.updateTodo(updated);
+    await _load();
+  }
+
+  Future<void> _quickAddTodo() async {
+    final text = _quickTodoController.text.trim();
+    if (text.isEmpty) return;
+    final newTodo = Todo(
+      date: _today,
+      title: text,
+      priority: _quickPriority,
+      impactOnMood: _quickImpact,
+      subtasks: const [],
+    );
+    await StorageService.createTodo(newTodo);
+    _quickTodoController.clear();
+    setState(() {
+      _quickPriority = 'medium';
+      _quickImpact = false;
+    });
     await _load();
   }
 
@@ -1063,12 +1100,24 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
   }
 
   Widget _buildHabitCompletionChart() {
-    // Mock data for habit completion - in real app, get from habit service
+    // Derive completion per priority from weekly todos
+    final Map<String, Map<String, int>> countsByPriority = {
+      'high': {'done': 0, 'total': 0},
+      'medium': {'done': 0, 'total': 0},
+      'low': {'done': 0, 'total': 0},
+    };
+    for (final t in _weekTodos) {
+      final p = (t.priority == 'high' || t.priority == 'low') ? t.priority : 'medium';
+      countsByPriority[p]!['total'] = (countsByPriority[p]!['total'] ?? 0) + 1;
+      final isDone = t.progressPercent == 100;
+      if (isDone) {
+        countsByPriority[p]!['done'] = (countsByPriority[p]!['done'] ?? 0) + 1;
+      }
+    }
     final habitData = [
-      {'name': 'Exercise', 'completed': 5, 'total': 7},
-      {'name': 'Meditation', 'completed': 4, 'total': 7},
-      {'name': 'Reading', 'completed': 6, 'total': 7},
-      {'name': 'Sleep', 'completed': 3, 'total': 7},
+      {'name': 'High Priority', 'completed': countsByPriority['high']!['done']!, 'total': countsByPriority['high']!['total']!},
+      {'name': 'Medium Priority', 'completed': countsByPriority['medium']!['done']!, 'total': countsByPriority['medium']!['total']!},
+      {'name': 'Low Priority', 'completed': countsByPriority['low']!['done']!, 'total': countsByPriority['low']!['total']!},
     ];
     
     return Container(
@@ -1100,7 +1149,9 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
           ),
           const SizedBox(height: 16),
           ...habitData.map((habit) {
-            final percentage = ((habit['completed'] as int) / (habit['total'] as int)) * 100;
+            final total = habit['total'] as int;
+            final completed = habit['completed'] as int;
+            final percentage = total == 0 ? 0.0 : (completed / total) * 100;
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Column(
@@ -1118,7 +1169,7 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
                         ),
                       ),
                       Text(
-                        '${habit['completed']}/${habit['total']}',
+                        '$completed/$total',
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.green.shade600,
@@ -1128,7 +1179,7 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
                   ),
                   const SizedBox(height: 4),
                   LinearProgressIndicator(
-                    value: percentage / 100,
+                    value: (percentage / 100).clamp(0.0, 1.0),
                     backgroundColor: Colors.green.shade100,
                     valueColor: AlwaysStoppedAnimation<Color>(Colors.green.shade400),
                     minHeight: 8,
@@ -1152,16 +1203,23 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
   }
 
   Widget _buildProductivityChart() {
-    // Mock productivity data - in real app, calculate from todos and habits
-    final productivityData = [
-      {'day': 'Mon', 'score': 85},
-      {'day': 'Tue', 'score': 92},
-      {'day': 'Wed', 'score': 78},
-      {'day': 'Thu', 'score': 88},
-      {'day': 'Fri', 'score': 95},
-      {'day': 'Sat', 'score': 70},
-      {'day': 'Sun', 'score': 82},
-    ];
+    // Compute daily productivity score from weekly todos
+    final dayNames = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final Map<int, List<Todo>> todosByWeekday = {for (int i = 1; i <= 7; i++) i: <Todo>[]};
+    for (final t in _weekTodos) {
+      final weekday = t.date.weekday; // 1..7 (Mon..Sun)
+      todosByWeekday[weekday]!.add(t);
+    }
+    final productivityData = List.generate(7, (index) {
+      final weekday = index + 1;
+      final todos = todosByWeekday[weekday]!;
+      if (todos.isEmpty) {
+        return {'day': dayNames[index], 'score': 0};
+      }
+      // Score as average completion percent of todos that day
+      final avg = todos.map((t) => t.progressPercent).fold<int>(0, (a, b) => a + b) / todos.length;
+      return {'day': dayNames[index], 'score': avg.round().clamp(0, 100)};
+    });
     
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -1290,11 +1348,47 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    TextButton.icon(
-                      onPressed: _addTodoDialog,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Add'),
-                    ),
+                    Row(children: [
+                      // Quick add inline
+                      SizedBox(
+                        width: 180,
+                        child: TextField(
+                          controller: _quickTodoController,
+                          decoration: const InputDecoration(
+                            isDense: true,
+                            hintText: 'Quick add a todo',
+                          ),
+                          onSubmitted: (_) => _quickAddTodo(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<String>(
+                        value: _quickPriority,
+                        items: const [
+                          DropdownMenuItem(value: 'high', child: Text('High')),
+                          DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                          DropdownMenuItem(value: 'low', child: Text('Low')),
+                        ],
+                        onChanged: (v) => setState(() => _quickPriority = v ?? 'medium'),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        children: [
+                          Switch(
+                            value: _quickImpact,
+                            onChanged: (v) => setState(() => _quickImpact = v),
+                            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          const Text('Mood', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton.icon(
+                        onPressed: _quickAddTodo,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Add'),
+                      ),
+                    ]),
                   ],
                 ),
                 const SizedBox(height: 16),

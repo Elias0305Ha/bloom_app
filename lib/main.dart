@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'services/notification_service.dart';
 import 'screens/home_page.dart';
 import 'screens/daily_hub_page.dart';
 import 'screens/timeline_page.dart';
 import 'screens/weekly_review_page.dart';
+import 'screens/goals_page.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.initialize();
   runApp(const MyApp());
 }
 
@@ -41,6 +45,7 @@ class _RootNavState extends State<RootNav> {
     DailyHubPage(),
     TimelinePage(),
     WeeklyReviewPage(),
+    GoalsPage(),
   ];
 
   @override
@@ -55,6 +60,7 @@ class _RootNavState extends State<RootNav> {
           NavigationDestination(icon: Icon(Icons.calendar_today_outlined), selectedIcon: Icon(Icons.calendar_today), label: 'Hub'),
           NavigationDestination(icon: Icon(Icons.history), label: 'Timeline'),
           NavigationDestination(icon: Icon(Icons.analytics), label: 'Weekly'),
+          NavigationDestination(icon: Icon(Icons.flag_outlined), selectedIcon: Icon(Icons.flag), label: 'Goals'),
         ],
       ),
     );

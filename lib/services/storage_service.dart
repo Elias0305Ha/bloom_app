@@ -3,10 +3,12 @@ import '../models/mood_entry.dart';
 import '../models/todo.dart';
 import '../models/daily_review.dart';
 import '../models/habit.dart';
+import '../models/goal.dart';
 import 'mongodb_service.dart';
 import 'todo_mongodb_service.dart';
 import 'daily_review_mongodb_service.dart';
 import 'habit_mongodb_service.dart';
+import 'goal_mongodb_service.dart';
 
 class StorageService {
   // Save a mood entry
@@ -98,5 +100,66 @@ class StorageService {
 
   static Future<Map<String, dynamic>> getHabitStats() async {
     return await HabitMongoService.getHabitStats();
+  }
+
+  // ------------------ GOALS ------------------
+  static Future<ObjectId> createGoal(Goal goal) async {
+    return await GoalMongoService.createGoal(goal);
+  }
+
+  static Future<void> updateGoal(Goal goal) async {
+    await GoalMongoService.updateGoal(goal);
+  }
+
+  static Future<void> deleteGoal(ObjectId id) async {
+    await GoalMongoService.deleteGoal(id);
+  }
+
+  static Future<List<Goal>> getAllGoals() async {
+    return await GoalMongoService.getAllGoals();
+  }
+
+  static Future<Goal?> getGoalById(ObjectId id) async {
+    return await GoalMongoService.getGoalById(id);
+  }
+
+  static Future<List<Goal>> getGoalsByCategory(String category) async {
+    return await GoalMongoService.getGoalsByCategory(category);
+  }
+
+  static Future<List<Goal>> getActiveGoals() async {
+    return await GoalMongoService.getActiveGoals();
+  }
+
+  static Future<List<Goal>> getGoalsByPriority(String priority) async {
+    return await GoalMongoService.getGoalsByPriority(priority);
+  }
+
+  static Future<List<Goal>> getOverdueGoals() async {
+    return await GoalMongoService.getOverdueGoals();
+  }
+
+  static Future<List<Goal>> getGoalsDueSoon({int days = 7}) async {
+    return await GoalMongoService.getGoalsDueSoon(days: days);
+  }
+
+  static Future<void> completeGoal(ObjectId goalId) async {
+    await GoalMongoService.completeGoal(goalId);
+  }
+
+  static Future<void> updateMilestoneProgress(ObjectId goalId, int milestoneIndex, int progress) async {
+    await GoalMongoService.updateMilestoneProgress(goalId, milestoneIndex, progress);
+  }
+
+  static Future<void> completeMilestone(ObjectId goalId, int milestoneIndex) async {
+    await GoalMongoService.completeMilestone(goalId, milestoneIndex);
+  }
+
+  static Future<Map<String, dynamic>> getGoalStats() async {
+    return await GoalMongoService.getGoalStats();
+  }
+
+  static Future<List<Goal>> searchGoals(String query) async {
+    return await GoalMongoService.searchGoals(query);
   }
 }
