@@ -15,7 +15,6 @@
     <img alt="Daily Hub" src="docs/screenshots/hub.png" width="220" />
     <img alt="Weekly Review" src="docs/screenshots/weekly.png" width="220" />
     <img alt="Habit Tracker" src="docs/screenshots/Habit Tracker.png" width="220" />
-    <img alt="AI Insights" src="docs/screenshots/AI_insight.png" width="220" />
   </p>
 </div>
 
