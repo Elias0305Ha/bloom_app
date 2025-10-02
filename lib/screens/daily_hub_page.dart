@@ -1046,53 +1046,56 @@ class _DailyHubPageState extends State<DailyHubPage> with TickerProviderStateMix
           const SizedBox(height: 16),
           SizedBox(
             height: 120,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: moodData.asMap().entries.map((entry) {
+            child: LayoutBuilder(builder: (ctx, constraints) {
+              final barWidth = (constraints.maxWidth - 40) / (moodData.length.clamp(1, 7)) * 0.8;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: moodData.asMap().entries.map((entry) {
                 final index = entry.key;
                 final intensity = entry.value;
                 final height = ((intensity / maxIntensity) * 80).clamp(0.0, 80.0);
                 final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                 
-                return Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      width: 30,
-                      height: height,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.blue.shade400,
-                            Colors.purple.shade400,
-                          ],
+                  return Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        width: barWidth.clamp(14.0, 28.0),
+                        height: height,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.blue.shade400,
+                              Colors.purple.shade400,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        borderRadius: BorderRadius.circular(4),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      dayNames[index % 7],
-                      style: TextStyle(
-                        fontSize: 9,
-                        color: Colors.blue.shade600,
-                        fontWeight: FontWeight.w500,
+                      const SizedBox(height: 8),
+                      Text(
+                        dayNames[index % 7],
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Colors.blue.shade600,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    Text(
-                      intensity.toInt().toString(),
-                      style: TextStyle(
-                        fontSize: 8,
-                        color: Colors.blue.shade500,
+                      Text(
+                        intensity.toInt().toString(),
+                        style: TextStyle(
+                          fontSize: 8,
+                          color: Colors.blue.shade500,
+                        ),
                       ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
+                    ],
+                  );
+                }).toList(),
+              );
+            }),
           ),
         ],
       ),

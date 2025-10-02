@@ -81,6 +81,49 @@ class NotificationService {
       await _plugin.show(1, title, body, _defaultDetails());
     }
   }
+
+  static Future<void> cancel(int id) async {
+    await initialize();
+    await _plugin.cancel(id);
+  }
+
+  static Future<void> scheduleDailyAt({
+    required int id,
+    required int hour,
+    required int minute,
+    required String title,
+    required String body,
+  }) async {
+    await initialize();
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduled,
+        _defaultDetails(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: null,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {
+      // Fallback without match if exact alarms not permitted
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduled,
+        _defaultDetails(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: null,
+      );
+    }
+  }
 }
 
 
